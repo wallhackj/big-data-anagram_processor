@@ -19,7 +19,7 @@ public class AnagramMapper extends Mapper<LongWritable, Text, Text, Text> {
         int[] arr = new int[26];
 
         for (char c : chars) {
-            if (isAlphaNum(c)) {
+            if (isAlpha(c)) {
                 continue;
             }
             if ('A' <= c && 'Z' >= c) c |= (1 << 5);
@@ -37,7 +37,7 @@ public class AnagramMapper extends Mapper<LongWritable, Text, Text, Text> {
         context.write(finKey, val);
     }
 
-    private static boolean isAlphaNum(char c) {
-        return ('a' > c || 'z' < c) && ('0' > c || '9' < c);
+    private static boolean isAlpha(char c) {
+        return ('a' > c || 'z' < c);
     }
 }

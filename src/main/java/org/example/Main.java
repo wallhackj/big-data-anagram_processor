@@ -27,6 +27,7 @@ public class Main {
         job.setJarByClass(Main.class);
         job.setMapperClass(AnagramMapper.class);
         job.setReducerClass(AnagramReducer.class);
+        job.setPartitionerClass(HashPartitioner.class);
         job.setMapOutputKeyClass(Text.class);
         job.setMapOutputValueClass(Text.class);
         job.setOutputKeyClass(NullWritable.class);
