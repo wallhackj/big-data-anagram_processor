@@ -1,61 +1,83 @@
-version: "3"
+version: "3.8"
 
 services:
   namenode:
     image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
     container_name: namenode
-    restart: always
     ports:
       - "9870:9870"
       - "9000:9000"
     volumes:
       - hadoop_namenode:/hadoop/dfs/name
-      - /home/omnissiah/IdeaProjects/intership/build/libs:/jars
-      - /home/omnissiah/IdeaProjects/intership/input:/input_local:ro
+      - ./in:/input_local:ro
+      - ./build/libs:/jars:ro
     environment:
       - CLUSTER_NAME=test
     env_file:
       - ./hadoop.env
+    restart: always
 
   datanode:
     image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
     container_name: datanode
-    restart: always
     volumes:
       - hadoop_datanode:/hadoop/dfs/data
-    environment:
-      SERVICE_PRECONDITION: "namenode:9870"
     env_file:
       - ./hadoop.env
-  
+    restart: always
+
   resourcemanager:
     image: bde2020/hadoop-resourcemanager:2.0.0-hadoop3.2.1-java8
     container_name: resourcemanager
-    restart: always
-    environment:
-      SERVICE_PRECONDITION: "namenode:9000 namenode:9870 datanode:9864"
     env_file:
       - ./hadoop.env
+    restart: always
 
-  nodemanager1:
+  nodemanager:
     image: bde2020/hadoop-nodemanager:2.0.0-hadoop3.2.1-java8
     container_name: nodemanager
-    restart: always
-    environment:
-      SERVICE_PRECONDITION: "namenode:9000 namenode:9870 datanode:9864 resourcemanager:8088"
     env_file:
       - ./hadoop.env
-  
+    restart: always
+
   historyserver:
     image: bde2020/hadoop-historyserver:2.0.0-hadoop3.2.1-java8
     container_name: historyserver
-    restart: always
-    environment:
-      SERVICE_PRECONDITION: "namenode:9000 namenode:9870 datanode:9864 resourcemanager:8088"
     volumes:
       - hadoop_historyserver:/hadoop/yarn/timeline
     env_file:
       - ./hadoop.env
+    restart: always
+
+  jobrunner:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: jobrunner
+    depends_on:
+      - namenode
+      - resourcemanager
+    volumes:
+      - ./build/libs:/jars:ro
+      - ./in:/input_local:ro
+      - ./result_host:/host_result
+    entrypoint: [ "/bin/bash", "-c" ]
+    command: |
+      # make sure TERM is set to avoid tput warnings
+      export TERM=$${TERM:-xterm}
+      echo "Waiting for HDFS to be ready..."
+      for i in $$(seq 1 60); do
+        hdfs dfs -ls / >/dev/null 2>&1 && break
+        echo "HDFS not ready yet ($$i/60)..."
+        sleep 2
+      done
+      echo "Cleaning old HDFS output (if exists)..."
+      hdfs dfs -rm -r /result_hdfs || true
+      echo "Running MapReduce job..."
+      yarn jar /jars/intership-1.0-SNAPSHOT.jar -Dmapreduce.job.reduces=1 /input_local /result_hdfs
+      RC=$$?
+      echo "yarn exit code: $$RC"
+      echo "Copying result from HDFS to host-mounted folder..."
+      hdfs dfs -copyToLocal /result_hdfs /host_result || true
+      echo "Done. Results should be in ./result_host/result_hdfs"
 
 volumes:
   hadoop_namenode:
